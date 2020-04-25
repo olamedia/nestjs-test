@@ -4,6 +4,7 @@ export const databaseProviders = [
   {
     provide: 'DATABASE_CONNECTION',
     useFactory: async () => await createConnection({
+      name: 'test',
       type: 'mysql',
       host: 'localhost',
       port: 3306,

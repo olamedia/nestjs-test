@@ -1,7 +1,14 @@
 import { Entity, Column, PrimaryColumn } from 'typeorm';
 
+export interface Review {
+  id: string | null;
+  from: string;
+  to: string | null;
+  reason: string;
+}
+
 @Entity()
-export class Review {
+export class Review{
   @PrimaryColumn({ length: 16 })
   id: string;
 
