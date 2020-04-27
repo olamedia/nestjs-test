@@ -1,26 +1,27 @@
 import {
+  Body,
+  ClassSerializerInterceptor,
   Controller,
   Get,
   Post,
-  Body,
   Query,
-  ClassSerializerInterceptor,
   UseInterceptors,
-} from '@nestjs/common';
-import { CreateReviewDto } from './dto/create-review.dto';
-import { ReviewService } from './review.service';
-import { ReviewResponseBuilder } from './review.response.builder';
-import { ReviewListResponseDto } from './dto/list-response.dto';
-import { ListRequestDto } from './dto/list-request.dto';
-import { ReviewListCursor } from './review.list.cursor';
+} from '@nestjs/common'
+import { ReviewCreateRequestDto } from './dto/review-create-request.dto'
+import { ReviewService } from './review.service'
+import { ReviewListResponseDto } from './dto/review-list-response.dto'
+import { ReviewListRequestDto } from './dto/review-list-request.dto'
+import { ReviewQueryTransformer } from './review.query.transformer'
+import { Review } from './review.entity'
 
 @UseInterceptors(ClassSerializerInterceptor)
 @Controller('review')
 export class ReviewController {
   constructor(
     private reviewService: ReviewService,
-    private responseBuilder: ReviewResponseBuilder
+    private queryTransformer: ReviewQueryTransformer,
   ) {}
+
   /*
   List получает id пользователя-получателя и отдаёт список благодарностей от самых свежих к самым старым.
   Пагинация обеспечивается с помощью курсора: возможны два варианта параметров запроса:
@@ -33,18 +34,21 @@ export class ReviewController {
   Также cursor должен иметь формат, позволяющий включать его в url запроса без url-encoding-а – джуны постоянно забывают про encodeURIComponent. :)
    */
   @Get('list')
-  async list(@Query() query: ListRequestDto): Promise<ReviewListResponseDto> {
-    if (query.cursor !== undefined) {
-      console.log('query.cursor !== undefined', query);
-      const prev: number = await this.reviewCursor.extractQuery(query, query.cursor);
-      const [items, total] = await this.reviewService.findAllNextPage(query.id, query.perPage, query.id + '#' + prev);
-      const cursor = await this.reviewCursor.createNextCursor(query, items);
-      return await this.responseBuilder.listResponse(total, cursor, items);
-    }
-    if (query.id !== undefined && query.perPage !== undefined) {
-      const [items, total] = await this.reviewService.findAllFirstPage(query.id, query.perPage);
-      const cursor = await this.reviewCursor.createNextCursor(query, items);
-      return await this.responseBuilder.listResponse(total, cursor, items);
+  async list(
+    @Query() queryDto: ReviewListRequestDto,
+  ): Promise<ReviewListResponseDto> {
+    const query = await this.queryTransformer.createListQuery(queryDto)
+    console.log(query, queryDto)
+    const [items, total] = await this.reviewService.findAllPaged(query)
+    const nextCursor = await this.queryTransformer.encodeCursor(
+      query,
+      items.length,
+      total,
+    )
+    return {
+      total,
+      nextCursor,
+      items,
     }
   }
 
@@ -56,9 +60,7 @@ export class ReviewController {
   Add должен исключать возможность race condition при добавлении записей.
    */
   @Post('add')
-  async add(@Body() createReviewDto: CreateReviewDto): Promise<string> {
-    await this.reviewService.create(createReviewDto);
-    return 'add';
+  async add(@Body() reviewCreateDto: ReviewCreateRequestDto): Promise<Review> {
+    return await this.reviewService.create(reviewCreateDto)
   }
-
 }

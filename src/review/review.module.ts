@@ -1,24 +1,15 @@
-import { Module } from '@nestjs/common';
-import { DatabaseModule } from '../database/database.module';
-import { reviewProviders } from './review.providers';
-import { ReviewService } from './review.service';
-import { ReviewController } from './review.controller';
-import { ReviewResponseBuilder } from './review.response.builder';
-import { ReviewCursor } from './review.cursor.transformer';
+import { Module } from '@nestjs/common'
+import { ReviewService } from './review.service'
+import { ReviewController } from './review.controller'
+import { ReviewQueryTransformer } from './review.query.transformer'
+import { ReviewListQuery } from './query/review-list-query'
+import { Review } from './review.entity'
+import { TypeOrmModule } from '@nestjs/typeorm'
 
 @Module({
   controllers: [ReviewController],
-  imports: [DatabaseModule],
-  providers: [
-    ...reviewProviders,
-    ReviewService,
-    ReviewResponseBuilder,
-    ReviewCursor
-  ],
-  exports: [
-    ReviewService,
-    ReviewResponseBuilder,
-    ReviewCursor
-  ]
+  imports: [TypeOrmModule.forFeature([Review])],
+  providers: [ReviewService, ReviewListQuery, ReviewQueryTransformer],
+  exports: [ReviewService, ReviewListQuery, ReviewQueryTransformer],
 })
 export class ReviewModule {}

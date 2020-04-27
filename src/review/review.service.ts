@@ -1,117 +1,69 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { Repository, Transaction, TransactionManager, TransactionRepository } from 'typeorm';
-import { Review } from './review.entity';
-import { CreateReviewDto } from './dto/create-review.dto';
-import { EntityManager } from 'typeorm/entity-manager/EntityManager';
+import { Injectable } from '@nestjs/common'
+import { Repository } from 'typeorm'
+import { Review } from './review.entity'
+import { ReviewCreateRequestDto } from './dto/review-create-request.dto'
+import { ReviewListQuery } from './query/review-list-query'
+import { InjectRepository } from '@nestjs/typeorm'
 
 @Injectable()
 export class ReviewService {
   constructor(
-    @Inject('REVIEW_REPOSITORY')
+    @InjectRepository(Review)
     private reviewRepository: Repository<Review>,
   ) {}
 
   async findAll(): Promise<Review[]> {
-    return this.reviewRepository.find();
+    return this.reviewRepository.find()
   }
 
-  async findAllFirstPage(to: string, perPage: number): Promise<[Review[], number]> {
-    return this.reviewRepository.createQueryBuilder("review")
-      .where("review.to = :to", { to: to })
-      .addOrderBy('id', 'ASC')
-      .take(perPage)
-      .getManyAndCount();
-  }
-
-  async findAllNextPage(to: string, perPage: number, prevId: string) {
-    return this.reviewRepository.createQueryBuilder("review")
-      .where("review.to = :to AND review.id > :prevId", {
-        to: to,
-        prevId: prevId
+  async findAllPaged(query: ReviewListQuery) {
+    console.log(query)
+    return this.reviewRepository
+      .createQueryBuilder('review')
+      .where('review.to = :to', {
+        to: query.id,
       })
       .addOrderBy('id', 'ASC')
-      .take(perPage)
-      .getManyAndCount();
+      .take(query.perPage)
+      .skip(query.skip)
+      .getManyAndCount()
   }
 
-  // async transaction<T>(
-  //   callback: (entityManager: EntityManager, repository: Repository<Review>) => Promise<T>
-  // ): Promise<T>{
-  //   const reviewRepository = this.reviewRepository;
-  //   const reviewConnection = this.reviewRepository.manager.connection;
-  //
-  //   return await reviewConnection.transaction(async transactionalEntityManager => {
-  //     return callback(transactionalEntityManager, reviewRepository);
-  //   });
-  // }
-
-  // @Transaction()
-  // async create(
-  //   reviewDto: CreateReviewDto,
-  //   //@TransactionManager() manager: EntityManager,
-  //   @TransactionRepository(Review) reviewRepository: Repository<Review>
-  // ) {
-  //   const reviewCount: number = await reviewRepository.count({
-  //     to: reviewDto.to
-  //   });
-  //
-  //   const review = reviewRepository.manager.create(Review);
-  //   review.from = reviewDto.from;
-  //   review.to = reviewDto.to;
-  //   review.reason = reviewDto.reason;
-  //   review.id = review.to + '#' + (reviewCount + 1).toString().padStart(6, '0');
-  //
-  //   await reviewRepository.manager.save(review);
-  //
-  //   return review;
-  // }
-
-  //
-  //
-  // async create2(reviewDto: CreateReviewDto): Promise<Review> {
-  //   return await this.transaction(
-  //     async (entityManager, repository) => {
-  //       const reviewCount: number = await repository.count({
-  //         to: reviewDto.to
-  //       });
-  //
-  //       const review = entityManager.create(Review);
-  //       review.from = reviewDto.from;
-  //       review.to = reviewDto.to;
-  //       review.reason = reviewDto.reason;
-  //       review.id = review.to + '#' + (reviewCount + 1).toString().padStart(6, '0');
-  //
-  //       await entityManager.save(review);
-  //
-  //       return review;
-  //     }
-  //   );
-  // }
-
-  async create(reviewDto: CreateReviewDto): Promise<Review> {
-    const reviewRepository = this.reviewRepository;
-    const reviewConnection = this.reviewRepository.manager.connection;
+  async create(reviewDto: ReviewCreateRequestDto): Promise<Review> {
+    const reviewRepository = this.reviewRepository
+    const reviewConnection = this.reviewRepository.manager.connection
 
     return await reviewConnection.transaction(
-      async transactionalEntityManager => {
-          const reviewCount: number = await reviewRepository.count({
-            to: reviewDto.to
-          });
+      async (transactionalEntityManager) => {
+        // const reviewCount: number = await reviewRepository.count({
+        //   to: reviewDto.to,
+        // })
 
-          // FIXME: get last id instead
+        const lastReview: Review = await reviewRepository.findOne({
+          where: {
+            to: reviewDto.to,
+          },
+          order: {
+            id: 'DESC',
+          },
+        })
 
-          const review = transactionalEntityManager.create(Review);
-          review.from = reviewDto.from;
-          review.to = reviewDto.to;
-          review.reason = reviewDto.reason;
-          review.id = review.to + '#' + (reviewCount + 1).toString().padStart(6, '0');
+        const lastIncrement = parseInt(
+          lastReview.id.split('#')[1].replace(/^[0]+/, ''),
+          10,
+        )
 
-          await transactionalEntityManager.save(review);
+        const review = transactionalEntityManager.create(Review)
+        review.from = reviewDto.from
+        review.to = reviewDto.to
+        review.reason = reviewDto.reason
+        review.id =
+          review.to + '#' + (lastIncrement + 1).toString().padStart(6, '0')
 
-          return review;
-      }
-    );
+        await transactionalEntityManager.save(review)
+
+        return review
+      },
+    )
   }
-
-
 }
