@@ -38,7 +38,6 @@ export class ReviewController {
     @Query() queryDto: ReviewListRequestDto,
   ): Promise<ReviewListResponseDto> {
     const query = await this.queryTransformer.createListQuery(queryDto)
-    console.log(query, queryDto)
     const [items, total] = await this.reviewService.findAllPaged(query)
     const nextCursor = await this.queryTransformer.encodeCursor(
       query,
